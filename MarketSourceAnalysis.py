@@ -25,6 +25,36 @@ ms_values_dict = {'audiences': ['audlong','audShort','audiences'],
                   'programs' : ['progLong', 'progShort','programs']
                   }
 
+form_and_revenue_query = '''
+SELECT COF.ContactsOnlineFormID,
+	COF.VanID,
+	COF.OnlineFormID,
+	CONVERT(date, COF.DateCreated) as DateCreated,
+	IsNewContact,
+	BatchEmailJobDistributionID,
+	MarketSource,
+	Amount,
+	LOWER(SUBSTRING(MarketSource, 1, 3)) as 'progShort',
+	LOWER(SUBSTRING(MarketSource, 4, 3)) as 'platShort',
+	LOWER(SUBSTRING(MarketSource, 7, 2)) as 'mediumShort',
+	LOWER(SUBSTRING(MarketSource, 9, 2)) as 'fyShort',
+	LOWER(SUBSTRING(MarketSource, 11, 3)) as 'campShort',
+	LOWER(SUBSTRING(MarketSource, 14, 2)) as 'audShort',
+	LOWER(SUBSTRING(MarketSource, 16, 3)) as 'creativeShort',
+	LOWER(SUBSTRING(MarketSource, 19, 2)) as 'Iteration'
+FROM [dbo].[CRS_ContactsOnlineForms] COF
+LEFT JOIN [dbo].[CRS_ContactsContributions] CC ON COF.ContactsOnlineFormID = CC.ContactsOnlineFormID
+LEFT JOIN [dbo].[CRS_ContactsContributionsCodes] CCC ON CC.ContactsContributionID = CCC.COntactsContributionID
+LEFT JOIN [dbo].[CRS_Codes] C on C.CodeID = CCC.CodeID
+'''
+
+ms_where_clause = '''
+MarketSource IS NOT NULL
+AND LEN(MarketSource) = 20
+'''
+
+
+
 #This method creates a database connection given the requisite variables
 def db_connect(driver, server, port, database, username, password):
     connect_statement='DRIVER='+driver+';SERVER='+server+';PORT='+str(port) 
@@ -37,27 +67,35 @@ def db_connect(driver, server, port, database, username, password):
 #on the data in the query. This is useful for when you have matching data in
 #multiple databases.
 def frame_assembler(sql_query, cnxn, dataframe = None, mergecol = None):
-    new_dataframe = pandas.read_sql(sql_query, cnxn)
-    if dataframe is not None and mergecol is not None:
-        updated_frame = pandas.merge(dataframe,
-                                     new_dataframe,
-                                     on = mergecol,
-                                     how = 'left'
-                                     )
-        return updated_frame
-    elif dataframe is not None and mergecol is not None:
-        print('Error - no merge column provided.')
-        quit()
-    else:
-        return new_dataframe
-
+    try:
+        new_dataframe = pandas.read_sql(sql_query, cnxn)
+        if dataframe is not None and mergecol is not None:
+            updated_frame = pandas.merge(dataframe,
+                                         new_dataframe,
+                                         on = mergecol,
+                                         how = 'left'
+                                         )
+            return updated_frame
+        elif dataframe is not None and mergecol is not None:
+            print('Error - no merge column provided.')
+            quit()
+        else:
+            return new_dataframe
+    except Exception as e:
+        print(e)
+        
 #This method takes a dataframe and other information and outputs a graph as
 #a file. This will eventually be converted to add images to a pdf. 
 def figure_maker(dataframe, group_col, name, agg_method = 'count', plot_kind = 'bar'):
-    plot_base = dataframe.groupby([group_col])[group_col].agg(agg_method).sort_values(ascending = False)
-    plot = plot_base.plot(kind=plot_kind, figsize = (10,10))
-    fig = plot.get_figure()
-    fig.savefig(name)
+    try:
+        plot_base = dataframe.groupby([group_col])[group_col].agg(agg_method).sort_values(ascending = False)
+        plot = plot_base.plot(kind=plot_kind, figsize = (10,10))
+        fig = plot.get_figure()
+        fig.savefig(name)
+    except Exception as e:
+        print(e)
+    else:
+        return name
 
 #This method returns the 5 most frequent items in a given column of a dataframe
 #It's used when we want to limit what's displayed in the graph.
@@ -157,5 +195,21 @@ def main():
 #    figure_maker(top_5_medium_frame, 'mediumlong', 'MS_Medium_Top5_Summary.png')
     
 #    summary_graphs(ea_df, 'mediumlong')
+    
+    #Summary totals to assemble:
+        #Total Form Submissions - total for this week, total for last week, Week-over-week percent change, total this week last year, year-over-year percent change
+        #New Contacts - total for this week, total for last week, week-over-week percent change, total this week last year, year over year percent change
+        #Total raised - total for this week, total for last week, week-over-week percent change, total this week last year, year over year percent change
+        #Emails sent - total for this week, total for last week, week-over-week percent change, total this week last year, year over year percent change
+        #Email recipients - total for this week, total for last week, week-over-week percent change, total this week last year, year over year percent change
+        #Market Source Transactions - total this week, total last week, week-over-week percent change, total this week last year, year over year percent change
+    
+    #Graphs to assemble:
+        #Form Submissions by Week, current quarter - one line for weeks this year, one line for weeks last year, one line for last year average
+        #Emails by week, current quarter - one line for weeks this year, one line for weeks last year, one line for last year average
+        #New Contacts by week, current quarter - one line for weeks this year, one line for weeks last year, one line for last year average
+        #Total raised by week, current quarter - one line for weeks this year, one line for weeks last year, one line for last year average
+        
+    
     
 main()

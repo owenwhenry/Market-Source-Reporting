@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Digital Engagement Report</title>
+</head>
+<body>
+	<h1>Summary</h2>
+    <h2>Sales Funnel Report - National</h2>
+     {{ national_pivot_table }}
+</body>
+<footer>
+	<p> Compiled {{date}} </p>
+	<p>Report written and maintained by {{author}}</p>
+	<p>Questions? Email me at {{author_email}}</p>
+</footer>
+</html>
