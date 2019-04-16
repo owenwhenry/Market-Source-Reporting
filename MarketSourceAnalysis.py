@@ -13,6 +13,13 @@ from pyodbc import connect
 import Cespanar_variables as cv
 #Pandas combines the data and runs analysis
 import pandas
+from datetime import date
+
+
+#Initialize variables for the quarters, as these will be used globally
+current_quarter = 0
+quarter_start_date = 0
+quarter_end_date = 0
 
 #This tracks various values per table/piece of market source data
 #This is called frequently in loops
@@ -53,8 +60,37 @@ MarketSource IS NOT NULL
 AND LEN(MarketSource) = 20
 '''
 
-
-
+#Sets the current quarter for the purposes of defining bounds of data frames
+def set_quarter():
+    try:
+        global current_quarter
+        global quarter_start_date
+        global quarter_end_date
+        cur_day = date.today()
+        cur_month = int(cur_day.month -1)
+        cur_quarter = int(cur_month//3)
+        cur_year = int(cur_day.year)
+        if cur_quarter == 0:
+            current_quarter = "Q2"
+            quarter_start_date = date(cur_year, 1, 1)
+            quarter_end_date = date(cur_year, 3, 31)
+        elif cur_quarter == 1: 
+            current_quarter = "Q3"   
+            quarter_start_date = date(cur_year, 4, 1)
+            quarter_end_date = date(cur_year, 6, 30)        
+        elif cur_quarter == 2:
+            current_quarter = "Q4"
+            quarter_start_date = date(cur_year, 7, 1)
+            quarter_end_date = date(cur_year, 9, 30) 
+        elif cur_quarter == 3:
+            current_quarter = "Q1"
+            quarter_start_date = date(cur_year, 10, 1)
+            quarter_end_date = date(cur_year, 12, 31) 
+        else:
+            print('Set Quarter Fail')
+    except Exception as e:
+        print(e)
+        
 #This method creates a database connection given the requisite variables
 def db_connect(driver, server, port, database, username, password):
     connect_statement='DRIVER='+driver+';SERVER='+server+';PORT='+str(port) 
@@ -210,6 +246,5 @@ def main():
         #New Contacts by week, current quarter - one line for weeks this year, one line for weeks last year, one line for last year average
         #Total raised by week, current quarter - one line for weeks this year, one line for weeks last year, one line for last year average
         
-    
     
 main()
