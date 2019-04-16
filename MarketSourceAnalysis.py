@@ -20,6 +20,8 @@ from datetime import date
 current_quarter = 0
 quarter_start_date = 0
 quarter_end_date = 0
+prev_year_quarter_start = 0
+prev_year_quarter_end = 0
 
 #This tracks various values per table/piece of market source data
 #This is called frequently in loops
@@ -60,34 +62,50 @@ MarketSource IS NOT NULL
 AND LEN(MarketSource) = 20
 '''
 
+quarter_date_clause = '''
+DateCreated >= %s and DateCreated <= %s
+''' %(quarter_start_date, quarter_end_date)
+
 #Sets the current quarter for the purposes of defining bounds of data frames
 def set_quarter():
     try:
         global current_quarter
         global quarter_start_date
         global quarter_end_date
+        global prev_year_quarter_start
+        global prev_year_quarter_end
         cur_day = date.today()
         cur_month = int(cur_day.month -1)
         cur_quarter = int(cur_month//3)
         cur_year = int(cur_day.year)
+        prev_year = cur_year - 1
         if cur_quarter == 0:
             current_quarter = "Q2"
             quarter_start_date = date(cur_year, 1, 1)
             quarter_end_date = date(cur_year, 3, 31)
+            prev_year_quarter_start = date(prev_year, 1, 1)
+            prev_year_quarter_end = date(prev_year, 3, 31)
         elif cur_quarter == 1: 
             current_quarter = "Q3"   
             quarter_start_date = date(cur_year, 4, 1)
-            quarter_end_date = date(cur_year, 6, 30)        
+            quarter_end_date = date(cur_year, 6, 30)
+            prev_year_quarter_start = date(prev_year, 4, 1)
+            prev_year_quarter_end = date(prev_year, 6, 30)            
         elif cur_quarter == 2:
             current_quarter = "Q4"
             quarter_start_date = date(cur_year, 7, 1)
-            quarter_end_date = date(cur_year, 9, 30) 
+            quarter_end_date = date(cur_year, 9, 30)
+            prev_year_quarter_start = date(prev_year, 7, 1)
+            prev_year_quarter_end = date(prev_year, 9, 30)
         elif cur_quarter == 3:
             current_quarter = "Q1"
             quarter_start_date = date(cur_year, 10, 1)
-            quarter_end_date = date(cur_year, 12, 31) 
+            quarter_end_date = date(cur_year, 12, 31)
+            prev_year_quarter_start = date(prev_year, 10, 1)
+            prev_year_quarter_end = date(prev_year, 12, 31)
         else:
-            print('Set Quarter Fail')
+            print('Error - Set Quarter Fail')
+            quit()
     except Exception as e:
         print(e)
         
@@ -102,19 +120,34 @@ def db_connect(driver, server, port, database, username, password):
 #If a second dataframe and mergecolumn is provided, it updates the frame based
 #on the data in the query. This is useful for when you have matching data in
 #multiple databases.
-def frame_assembler(sql_query, cnxn, dataframe = None, mergecol = None):
+def frame_assembler(sql_query, cnxn, update_type = None, 
+                    dataframe = None, mergecol = None):
     try:
         new_dataframe = pandas.read_sql(sql_query, cnxn)
-        if dataframe is not None and mergecol is not None:
-            updated_frame = pandas.merge(dataframe,
-                                         new_dataframe,
-                                         on = mergecol,
-                                         how = 'left'
-                                         )
-            return updated_frame
-        elif dataframe is not None and mergecol is not None:
-            print('Error - no merge column provided.')
-            quit()
+        if update_type == 'merge':
+            if dataframe is not None and mergecol is not None:
+                updated_frame = pandas.merge(dataframe,
+                                             new_dataframe,
+                                             on = mergecol,
+                                             how = 'left'
+                                             )
+                return updated_frame
+            elif dataframe is not None and mergecol is None:
+                print('Error - no merge column provided.')
+                quit()
+            elif dataframe is None:
+                print('Error - dataframe parameter cannot be empty!')
+            else:
+                print('Error - problem assembling frame')
+        elif update_type == 'append':
+            if dataframe is not None:
+                updated_frame = dataframe.append(new_dataframe, 
+                                                 ignore_index = True)
+                return updated_frame
+            elif dataframe is None:
+                print('Error - dataframe parameter cannot be empty!')
+            else:
+                print('Error - problem assembling frame')
         else:
             return new_dataframe
     except Exception as e:
@@ -132,6 +165,12 @@ def figure_maker(dataframe, group_col, name, agg_method = 'count', plot_kind = '
         print(e)
     else:
         return name
+    
+#This creates my graphs by week
+def week_graph(graph_selection):
+    this_year_data = frame_assembler()
+    last_year_data = frame_assembler()
+    this_year_and_last_year
 
 #This method returns the 5 most frequent items in a given column of a dataframe
 #It's used when we want to limit what's displayed in the graph.
@@ -213,7 +252,7 @@ def main():
         else: 
             ms_query = 'SELECT ' + ms_values_dict[value][0] + ', ' + 'LCASE(' + ms_values_dict[value][1] + ')'
             ms_query += ' as ' + ms_values_dict[value][1] + ' from ' + ms_values_dict[value][2]
-        ea_df = frame_assembler(ms_query, ms_db_connection, ea_df, ms_values_dict[value][1] )
+        ea_df = frame_assembler(ms_query, ms_db_connection, 'merge', ea_df, ms_values_dict[value][1] )
     
     #Run this bit if you want a CSV generated to check values, otherwise leave
     #it commented out.
