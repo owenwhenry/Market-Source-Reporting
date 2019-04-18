@@ -13,8 +13,7 @@ from pyodbc import connect
 import Cespanar_variables as cv
 #Pandas combines the data and runs analysis
 import pandas
-from datetime import date
-from datetime import time
+import datetime as dt
 
 
 #Initialize variables for the quarters, as these will be used globally
@@ -80,37 +79,37 @@ def set_quarter():
         global prev_year_quarter_end
         global this_year
         global last_year
-        cur_day = date.today()
+        cur_day = dt.date.today()
         cur_month = int(cur_day.month -1)
         cur_quarter = int(cur_month//3)
         this_year = int(cur_day.year)
         last_year = this_year - 1
         if cur_quarter == 0:
             current_quarter = "Q2"
-            quarter_start_date = date(this_year, 1, 1)
-            quarter_end_date = date(this_year, 3, 31)
-            prev_year_quarter_start = date(last_year, 1, 1)
-            prev_year_quarter_end = date(last_year, 3, 31)
+            quarter_start_date = dt.date(this_year, 1, 1)
+            quarter_end_date = dt.date(this_year, 3, 31)
+            prev_year_quarter_start = dt.date(last_year, 1, 1)
+            prev_year_quarter_end = dt.date(last_year, 3, 31)
         elif cur_quarter == 1: 
             current_quarter = "Q3"   
-            quarter_start_date = date(this_year, 4, 1)
-            quarter_end_date = date(this_year, 6, 30)
-            prev_year_quarter_start = date(last_year, 4, 1)
-            prev_year_quarter_end = date(last_year, 6, 30)            
+            quarter_start_date = dt.date(this_year, 4, 1)
+            quarter_end_date = dt.date(this_year, 6, 30)
+            prev_year_quarter_start = dt.date(last_year, 4, 1)
+            prev_year_quarter_end = dt.date(last_year, 6, 30)            
         elif cur_quarter == 2:
             current_quarter = "Q4"
-            quarter_start_date = date(this_year, 7, 1)
-            quarter_end_date = date(this_year, 9, 30)
-            prev_year_quarter_start = date(last_year, 7, 1)
-            prev_year_quarter_end = date(last_year, 9, 30)
+            quarter_start_date = dt.date(this_year, 7, 1)
+            quarter_end_date = dt.date(this_year, 9, 30)
+            prev_year_quarter_start = dt.date(last_year, 7, 1)
+            prev_year_quarter_end = dt.date(last_year, 9, 30)
         elif cur_quarter == 3:
             current_quarter = "Q1"
-            quarter_start_date = date(this_year, 10, 1)
-            quarter_end_date = date(this_year, 12, 31)
-            prev_year_quarter_start = date(last_year, 10, 1)
-            prev_year_quarter_end = date(last_year, 12, 31)
+            quarter_start_date = dt.date(this_year, 10, 1)
+            quarter_end_date = dt.date(this_year, 12, 31)
+            prev_year_quarter_start = dt.date(last_year, 10, 1)
+            prev_year_quarter_end = dt.date(last_year, 12, 31)
         else:
-            print('Error - Set Quarter Fail')
+            raise ValueError('Set Quarter Fail')
             quit()
     except Exception as e:
         print(e)
@@ -144,12 +143,12 @@ def frame_assembler(sql_query, cnxn, update_type = None,
                                              )
                 return updated_frame
             elif dataframe is not None and mergecol is None:
-                print('Error - no merge column provided.')
+                raise ValueError('No merge column provided.')
                 quit()
             elif dataframe is None:
-                print('Error - dataframe parameter cannot be empty!')
+                raise ValueError('Dataframe parameter cannot be empty!')
             else:
-                print('Error - problem assembling frame')
+                raise ValueError('Problem assembling dataframe')
         elif update_type == 'append':
             if dataframe is not None:
                 updated_frame = dataframe.append(new_dataframe, 
@@ -195,26 +194,51 @@ def figure_maker(dataframe, group_col, name, agg_method = 'count', plot_kind = '
         return name
 
 #This creates my graphs by week
-def week_figure_maker(base_query, db_connection):
-    this_year_clause = ("COF.DateCreated >= '%s' and COF.DateCreated <= '%s'" 
-                                %(quarter_start_date, quarter_end_date))
-    last_year_clause = ("COF.DateCreated >= '%s' and COF.DateCreated <= '%s'"
-                                %(prev_year_quarter_start, prev_year_quarter_end)) 
-                           
-    this_year_query = (base_query + ' WHERE ' + this_year_clause)
-    last_year_query = (base_query + ' WHERE ' + last_year_clause)
-    this_year_data = frame_assembler(this_year_query, db_connection)
-    last_year_data = frame_assembler(last_year_query, db_connection)
-    this_year_data['DateCreated'] = pandas.to_datetime(this_year_data['DateCreated'])
-    last_year_data['DateCreated'] = pandas.to_datetime(last_year_data['DateCreated'])
-    this_year_data['Day_Of_Year'] = this_year_data['DateCreated'].dt.dayofyear
-    last_year_data['Day_Of_Year'] = last_year_data['DateCreated'].dt.dayofyear
-    this_year_count = (this_year_data.groupby(['Day_Of_Year'])['Day_Of_Year'].
-                       agg('count').sort_values(ascending = False))
-    last_year_count = (last_year_Data.groupby(['Day_Of_Year'])['Day_Of_Year'].
-                       agg('count').sort_values(ascending = False))
-    this_year_count.to_csv('This_year.csv')
-    last_year_count.to_csv('Last_year.csv')
+def timeperiod_figure_maker(base_query, db_connection, comparison_type = None ):
+    try:
+        this_period_start_date = 0 
+        this_period_end_date = 0
+        last_period_start_date = 0
+        last_period_end_date = 0
+            
+        if comparison_type == 'week':
+            return null
+        elif comparison_type == 'month':
+            return Null
+        elif comparison_type == 'quarter':
+            return None
+        elif comparison_type == 'year'
+            return None
+        else:
+            raise ValueError("Comparison Type Invalid - Please specify time period")
+        this_period_clause = ("COF.DateCreated >= '%s' and COF.DateCreated <= '%s'" 
+                                    %(this_period_start_date, 
+                                      this_period_end_date))
+        last_period_clause = ("COF.DateCreated >= '%s' and COF.DateCreated <= '%s'"
+                                    %(last_period_start_date, 
+                                      last_period_end_date)) 
+                               
+        this_period_query = (base_query + ' WHERE ' + this_period_clause)
+        last_period_query = (base_query + ' WHERE ' + last_period_clause)
+        
+        this_period_data = frame_assembler(this_period_query, db_connection)
+        last_period_data = frame_assembler(last_period_query, db_connection)
+        
+        this_period_data['DateCreated'] = pandas.to_datetime(this_period_data['DateCreated'])
+        last_period_data['DateCreated'] = pandas.to_datetime(last_period_data['DateCreated'])
+        
+        this_period_data['Day_Of_Year'] = this_period_data['DateCreated'].dt.dayofyear
+        last_period_data['Day_Of_Year'] = last_period_data['DateCreated'].dt.dayofyear
+        
+        this_period_count = (this_period_data.groupby(['Day_Of_Year'])['Day_Of_Year'].
+                           agg('count').sort_values(ascending = False))
+        last_period_count = (last_period_data.groupby(['Day_Of_Year'])['Day_Of_Year'].
+                           agg('count').sort_values(ascending = False))
+        
+        this_period_count.to_csv('This_year.csv')
+        last_period_count.to_csv('Last_year.csv')
+    except Exception as e:
+        print(e)
 #This method returns the 5 most frequent items in a given column of a dataframe
 #It's used when we want to limit what's displayed in the graph.
 #By default, it returns a list of the top 5 items.
