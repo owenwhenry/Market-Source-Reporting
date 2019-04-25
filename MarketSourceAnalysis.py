@@ -5,6 +5,7 @@ Created on Mon Mar 25 16:42:21 2019
 @author: owen.henry
 """
 
+from __future__ import division
 #Pyodbc is used to connect to various databases
 from pyodbc import connect
 #CespanarVariables is my own script to track variables like database names and 
@@ -16,8 +17,14 @@ import pandas
 import datetime as dt
 import sys
 import matplotlib.pyplot as plt
+import jinja2
+
 
 #Initialize variables for time periods, as these will be used globally
+this_period_start = ''
+this_period_end = ''
+last_period_start = ''
+last_period_end = ''
 
 today = dt.date.today()
 yesterday = dt.date.today() + dt.timedelta(-1)
@@ -26,31 +33,7 @@ day = today.day
 month = today.month
 year = today.year
 
-this_week_start = 0
-this_week_end = 0
-
-last_week_start = 0
-last_week_end = 0
-
-this_month_start = 0
-this_month_end = 0
-
-last_month_start = 0
-last_month_end = 0
-
-this_quarter_start = 0
-this_quarter_end = 0
-
-last_quarter_start = 0
-last_quarter_end = 0
-
-this_year_start = 0
-this_year_end = 0
-
-last_year_start = 0
-last_year_end = 0
-
-current_quarter = 0
+current_quarter = ''
 
 
 #This tracks various values per table/piece of market source data
@@ -92,19 +75,125 @@ MarketSource IS NOT NULL
 AND LEN(MarketSource) = 20
 '''
 
-#Sets the week
+email_query = '''
+SELECT A.EmailMessageID,
+	EmailMessageDistributionID,
+	DateSent,
+	DateScheduled,
+	EmailMessageName,
+	EmailSubject
+FROM CRS_EmailMessageDistributions A
+INNER JOIN CRS_EmailMessages B ON A.EmailMessageID = B.EmailMessageID
+WHERE A.EmailMessageID NOT IN (
+		884,
+		885
+		)
+'''
+
+def set_time_period(period, verbose = False):
+    try:
+        global this_period_start
+        global this_period_end
+        global last_period_start
+        global last_period_end
+        global current_quarter
+        
+        if period == 'week':
+            this_period_start = today - dt.timedelta(dt.date.weekday(today))
+            this_period_end = this_period_start + dt.timedelta(6)
+        
+            last_period_start = this_period_start - dt.timedelta(7)
+            last_period_end = this_period_end - dt.timedelta(7)
+            
+            if verbose == True:
+                print("This week starts: %s"%this_period_start) 
+                print("This week ends: %s"%this_period_end) 
+
+                print("Last week started: %s"%last_period_start ) 
+                print("Last week ended: %s" %last_period_end )
+        if period == 'month':
+            next_month = today.replace(day=28) + dt.timedelta(days=4)
+            
+            this_period_start = dt.date(year, month, 1)
+            this_period_end = next_month - dt.timedelta(next_month.day)
+            
+            last_period_end = this_period_start - dt.timedelta(1)
+            last_period_start =  last_period_end - dt.timedelta(last_period_end.day -1) 
+            
+            if verbose == True:
+                print("This month starts: %s" %this_period_start )
+                print("This month ends: %s" %this_period_end )
+    
+                print("Last month started: %s" %last_period_start )
+                print("Last month ended: %s" %last_period_end )
+        if period == 'quarter':
+            cur_month = int(today.month -1)
+            cur_quarter = int(cur_month//3)
+            if cur_quarter == 0:
+                current_quarter = "Q2"
+                this_period_start = dt.date(year, 1, 1)
+                this_period_end = dt.date(year, 3, 31)
+                last_period_start = dt.date(year - 1, 10, 1)
+                last_period_end = dt.date(year-1, 12, 31)
+            elif cur_quarter == 1: 
+                current_quarter = "Q3"   
+                this_period_start = dt.date(year, 4, 1)
+                this_period_end = dt.date(year, 6, 30)
+                last_period_start = dt.date(year - 1, 1, 1)
+                last_period_end = dt.date(year-1, 3, 31)            
+            elif cur_quarter == 2:
+                current_quarter = "Q4"
+                this_period_start = dt.date(year, 7, 1)
+                this_period_end = dt.date(year, 9, 30)
+                last_period_start = dt.date(year - 1, 4, 1)
+                last_period_end = dt.date(year - 1, 6, 31)            
+            elif cur_quarter == 3:
+                current_quarter = "Q1"
+                this_period_start = dt.date(year, 10, 1)
+                this_period_end = dt.date(year, 12, 31)
+                last_period_start = dt.date(year - 1, 7, 1)
+                last_period_end = dt.date(year-1, 9, 30)
+            else:
+                raise ValueError('Set Quarter Fail')
+            
+            if verbose == True:
+                print("This quarter started: %s" %this_period_start )
+                print("This quarter ended: %s"  %this_period_end )
+    
+                print("Last quarter started: %s" %last_period_start )
+                print("Last quarter ended: %s" %last_period_end )
+            
+        if period == 'year':
+            this_period_start = dt.date(year, 1, 1)
+            this_period_end = dt.date(year, 12, 31)
+    
+            last_period_start = dt.date(year - 1, 1, 1)
+            last_period_end = dt.date(year - 1, 12, 31)
+            
+            if verbose == True:
+                print("This year starts: %s" %this_period_start )
+                print("This year ends: %s" %this_period_end )
+                
+                print("Last year started: %s" %last_period_start )
+                print("Last year ended: %s" %last_period_end )                
+    except Exception as e:
+        print(e)        
+        sys.exit()
+
+#Sets the wee
+
 def set_week():
     try:
-        global this_week_start
-        global this_week_end
-        global last_week_start
-        global last_week_end
+        global this_period_start
+        global this_period_end
+        global last_period_start
+        global last_period_end
         
-        this_week_start = today - dt.timedelta(dt.date.weekday(today))
-        this_week_end = this_week_start + dt.timedelta(6)
+        this_period_start = today - dt.timedelta(dt.date.weekday(today))
+        this_period_end = this_period_start + dt.timedelta(6)
         
-        last_week_start = this_week_start - dt.timedelta(7)
-        last_week_end = this_week_end - dt.timedelta(7)
+        last_period_start = this_period_start - dt.timedelta(7)
+        last_period_end = this_period_end - dt.timedelta(7)
         
     except Exception as e:
         print(e)        
@@ -114,16 +203,16 @@ def set_week():
 def set_month():
     next_month = today.replace(day=28) + dt.timedelta(days=4)
     
-    global this_month_start
-    global this_month_end
-    global last_month_start
-    global last_month_end
+    global this_period_start
+    global this_period_end
+    global last_period_start
+    global last_period_end
     
-    this_month_start = dt.date(year, month, 1)
-    this_month_end = next_month - dt.timedelta(next_month.day)
+    this_period_start = dt.date(year, month, 1)
+    this_period_end = next_month - dt.timedelta(next_month.day)
     
-    last_month_end = this_month_start - dt.timedelta(1)
-    last_month_start =  last_month_end - dt.timedelta(last_month_end.day -1)
+    last_period_end = this_period_start - dt.timedelta(1)
+    last_period_start =  last_period_end - dt.timedelta(last_period_end.day -1)
     
 #Sets the quarter, which at CRS runs October to September
 def set_quarter():
@@ -212,6 +301,8 @@ def time_period_test():
     print("Last year ended: %s" %last_year_end )
     
     print("The current quarter is %s" %current_quarter)
+    
+
     
 #This method creates a database connection given the requisite variables
 def db_connect(driver, server, port, database, username, password):
@@ -310,69 +401,48 @@ def get_ms_data():
 #This method takes a dataframe and other information and outputs a graph as
 #a file. This will eventually be converted to add images to a pdf. 
 def figure_maker(dataframe, group_col, name, agg_method = 'count', plot_kind = 'bar'):
-    try:
+    #try:
         plot_base = dataframe.groupby([group_col])[group_col].agg(agg_method).sort_values(ascending = False)
         plot = plot_base.plot(kind=plot_kind, figsize = (10,10))
         fig = plot.get_figure()
         fig.savefig(name)
-    except Exception as e:
-        print(e)
-        sys.exit()
-    else:
-        return name
+        plt.show()
+    #except Exception as e:
+        #print(e)
+        #print('%tb')
+    #else:
+        #return fig
     
-#This creates my graphs by week
-def tp_figure_maker(df, comparison_type = None ):
-    #try:
-        this_period_start = 0 
-        this_period_end = 0
-        last_period_start = 0
-        last_period_end = 0
-            
-        if comparison_type == 'week':
-            this_period_start = this_week_start
-            this_period_end = this_week_end
-            last_period_start = last_week_start
-            last_period_end = last_week_end
-        elif comparison_type == 'month':
-            this_period_start = this_month_start
-            this_period_end = this_month_end
-            last_period_start = this_month_start
-            last_period_end = this_month_end
-        elif comparison_type == 'quarter':
-            this_period_start = this_quarter_start
-            this_period_end = this_quarter_end
-            last_period_start = this_quarter_start
-            last_period_end = this_quarter_end
-        elif comparison_type == 'year':
-            this_period_start = this_year_start
-            this_period_end = this_year_end
-            last_period_start = this_year_start
-            last_period_end = this_year_end
-        else:
-            raise ValueError("Comparison Type Invalid - Please specify time period")
-
-        print("I've set the time periods!")
+#This creates my graphs by time period
+def tp_figure_maker(df, datecolumn, xlab, ylab, legend1, legend2, title):
+    
+        x_count = (this_period_end - this_period_start)
         
-        df['DateCreated'] = pandas.to_datetime(df['DateCreated'])
+        plt.xlim(0, x_count.days)
         
-        df['Day_Of_Year'] = df['DateCreated'].dt.dayofyear
+        #print(x_count.days)
         
-        df = df.set_index(['DateCreated'])
+    #try:        
+        #print('Setting datetime indexes...')
+        df[datecolumn] = pandas.to_datetime(df[datecolumn])
+        
+        df['Day_Of_Year'] = df[datecolumn].dt.dayofyear
+        
+        df = df.set_index([datecolumn])
         df.sort_index(inplace=True, ascending=True)
         
-        print("I've set the index!")
+        #print("I've set the index!")
         
-        print('Creating time period slices...')
+        #print('Creating time period slices...')
         
         this_period_data = df.loc[this_period_start:this_period_end]
-        print("This period's data: ")
-        print(this_period_data.head())
+        #print("This period's data: ")
+        #print(this_period_data.head())
         
         last_period_data = df.loc[last_period_start:last_period_end]
         
-        print("Last period's data: ")
-        print(last_period_data.head())       
+        #print("Last period's data: ")
+        #print(last_period_data.head())       
         
         this_period_count = (this_period_data.groupby(['Day_Of_Year'])['Day_Of_Year'].
                            agg('count'))
@@ -383,18 +453,34 @@ def tp_figure_maker(df, comparison_type = None ):
         this_period_count.sort_index(inplace=True, ascending = True)
         last_period_count.sort_index(inplace=True, ascending = True)
         
-        this_period_count.reset_index
-        
         this_period_count.to_csv('this_period.csv')
         last_period_count.to_csv('last_period.csv')
         
-        fig, ax = plt.subplots()
+        #print(this_period_count.head())
+        #print(last_period_count.head())
         
-        ax.plot(this_period_count)
-        ax.plot(last_period_count)
-        ax.set_xlabel("Day")
-        ax.set_ylabel("Count")
-        plot = fig.get_figure()
+        this_period_count = this_period_count.reset_index(drop=True)
+        last_period_count = last_period_count.reset_index(drop=True)
+        
+        #last_period_average = df[[1]].mean()
+        
+        #print(last_period_average)
+        
+        #print(this_period_count.index)
+        
+        plt.plot(this_period_count, label = legend1)
+        plt.plot(last_period_count, label = legend2)
+        #plt.plot(last_period_average, label = 'Average')
+        
+        plt.xlabel = (xlab)
+        plt.ylabel = (ylab)
+        
+        plt.legend(loc='upper center', shadow=True, fontsize='x-large')
+        
+        plt.title(title)
+        #ax.plot(this_period_count)
+        #ax.plot(last_period_count)
+        #plot = fig.get_figure()
         
     #except Exception as e:
         #print(e)
@@ -441,29 +527,96 @@ def summary_graphs(dataframe, column):
             print(key)
             print(value)
 
+#This method creates the HTML to eventually output to a web page. 
+def create_html(name, figure_dict, template):
+    env = jinja2.Environment(loader=FileSystemLoad('.'))
+    report_template = env.get_template(template)
+    html_out = report_template.render(template_vars)
+
+def churn_report(cnxn):
+    churn_text = {}
+    churn_graphs = {}
+    
+    #period_start = str(this_period_start)
+    #period_end = str(this_period_end)
+    
+    #churn_text['Period Start'] = period_start
+    #churn_text['Period End'] = period_end
+    
+    #churn_text.append('This covers list churn between %s and %s.') % (
+            #start, end)
+    
+    churn_subscribed_query = '''
+    SELECT * from CRS_EmailSubscriptions
+    WHERE EmailSubscriptionStatusID = 2
+    AND DateCreated <= '%s';
+    ''' %this_period_end
+
+    churn_unsubscribed_query = """
+    SELECT * FROM CRS_EmailSubscriptions
+    WHERE EmailSubscriptionStatusID = 0
+    AND DateCreated <= '%s'
+    AND DateUnsubscribed >= '%s'
+    AND DateUnsubscribed <= '%s'
+    UNION
+    /***Total who became neutral before the start and the end of the period***/
+    SELECT * FROM CRS_EmailSubscriptions
+    WHERE EmailSubscriptionStatusID = 1
+    AND DateCreated <= '%s'
+    AND DateModified <= '%s'
+    AND DateModified >= '%s';
+    """ %(this_period_end, this_period_start, this_period_end, this_period_end, 
+    this_period_end, this_period_start)
+    
+    churn_unsubscribed_df = frame_assembler(churn_unsubscribed_query, cnxn)
+    
+    churn_total_df = frame_assembler(churn_subscribed_query, cnxn, 'append', 
+                                    churn_unsubscribed_df)
+    
+    print_churn = "{0:.3%}".format(
+            len(churn_unsubscribed_df.index)/len(churn_total_df)
+            )
+    
+    churn_text['Total Period Churn'] = print_churn
+    
+    return churn_text, churn_graphs
+    
+    
 #Main method, where the magic happens
 def main():
     #set the quarter
     print('Setting dates...')
-    set_week()
-    set_month()
-    set_quarter()
-    set_year()
+    set_time_period('year', True)
     
-    print('Getting data...')
-    df = get_ms_data()    
+    ea_dw_cnxn = db_connect(cv.az_driver, 
+                            cv.az_server,
+                            cv.az_port,
+                            cv.az_database,
+                            cv.az_username,
+                            cv.az_password)    
+    #print('Getting data...')
+    df = frame_assembler(form_and_revenue_query, ea_dw_cnxn)  
     
-    print('Making figures...')
+    #print(df.head())
+    #print('Making figures...')
     
-    tp_figure_maker(df, 'week')
+
+    
+
+    churn_text, churn_graphs = churn_report(ea_dw_cnxn)
+    print(churn_text['Total Period Churn'])
+    
+    tp_figure_maker(df, 'DateCreated', 'Day of Year', 'Count', '2019', '2018',
+                    'Form Transactions by Day - 2018 vs. 2019')
+
 
     
     #Time to make some graphs!
-    #figure_maker(ea_df,'platLong', 'MS_Platform_Summary.png')
-    #figure_maker(ea_df, 'camplong', 'MS_Campaign_Summary.png')
-    #figure_maker(ea_df, 'creativelong', 'MS_Creative_Summary.png')
-    #figure_maker(ea_df, 'mediumlong', 'MS_Medium_Summary.png')
-    #figure_maker(ea_df, 'progLong', 'MS_Program_Summary.png')
+    #figure_maker(top_five(df, 'platLong', 'dataframe'),'platLong', 'MS_Platform_Summary.png')
+    #figure_maker(top_five(df, 'camplong', 'dataframe'), 'camplong', 'MS_Campaign_Summary.png')
+    #figure_maker(top_five(df, 'creativelong', 'dataframe'), 'creativelong', 'MS_Creative_Summary.png')
+    #figure_maker(top_five(df, 'mediumLong', 'dataframe'), 'mediumLong', 'MS_Medium_Summary.png')
+    #figure_maker(top_five(df, 'progLong', 'dataframe'), 'progLong', 'MS_Program_Summary.png')
 
         
 #    figure_maker(top_5_medium_frame, 'mediumlong', 'MS_Medium_Top5_Summary.png')
@@ -484,5 +637,25 @@ def main():
         #New Contacts by week, current quarter - one line for weeks this year, one line for weeks last year, one line for last year average
         #Total raised by week, current quarter - one line for weeks this year, one line for weeks last year, one line for last year average
         
-    
+        #Email
+            #Messages Sent
+            #Recipients
+            #Churn - Bounces & Unsubscribes
+            
+        #Email Lists
+            #Count Active
+            #Count Inactive
+            #Total
+            #Trend over Time
+        #Forms
+            #Total Submissions
+            #New Contacts
+        #Market Source
+        
+        #Revenue
+            #Total Revenue
+            #Total Donors
+            #Total Gifts
+            #Avg gift amt    
+        
 main()
