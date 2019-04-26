@@ -165,7 +165,7 @@ def set_time_period(period, verbose = False):
             
         if period == 'year':
             this_period_start = dt.date(year, 1, 1)
-            this_period_end = dt.date(year, 12, 31)
+            this_period_end = today
     
             last_period_start = dt.date(year - 1, 1, 1)
             last_period_end = dt.date(year - 1, 12, 31)
@@ -320,7 +320,7 @@ def frame_assembler(sql_query, cnxn, update_type = None,
     #print("Assembling dataframe based on query: ")
     #print("")
     #print(sql_query)
-    try:
+    #try:
         new_dataframe = pandas.read_sql(sql_query, cnxn)
         if update_type == 'merge':
             if dataframe is not None and mergecol is not None:
@@ -348,9 +348,9 @@ def frame_assembler(sql_query, cnxn, update_type = None,
                 print('Error - problem assembling frame')
         else:
             return new_dataframe
-    except Exception as e:
-        print(e)
-        sys.exit()
+    #except Exception as e:
+        #print(e)
+        #sys.exit()
         
 
 def get_ms_data():
@@ -414,7 +414,7 @@ def figure_maker(dataframe, group_col, name, agg_method = 'count', plot_kind = '
         #return fig
     
 #This creates my graphs by time period
-def tp_figure_maker(df, datecolumn, xlab, ylab, legend1, legend2, title):
+def period_figure_maker(df, datecolumn, xlab, ylab, legend1, legend2, title):
     
         x_count = (this_period_end - this_period_start)
         
@@ -424,22 +424,24 @@ def tp_figure_maker(df, datecolumn, xlab, ylab, legend1, legend2, title):
         
     #try:        
         #print('Setting datetime indexes...')
-        df[datecolumn] = pandas.to_datetime(df[datecolumn])
+        df['DateUnsubscribed'] = pandas.to_datetime(df[datecolumn])
         
-        df['Day_Of_Year'] = df[datecolumn].dt.dayofyear
+        print(datecolumn)
         
-        df = df.set_index([datecolumn])
+        df['Day_Of_Year'] = df['DateUnsubscribed'].dt.dayofyear
+        
+        df = df.set_index(['DateUnsubscribed'])
         df.sort_index(inplace=True, ascending=True)
         
         #print("I've set the index!")
         
         #print('Creating time period slices...')
         
-        this_period_data = df.loc[this_period_start:this_period_end]
+        this_period_data = df.loc[str(this_period_start):str(this_period_end)]
         #print("This period's data: ")
         #print(this_period_data.head())
         
-        last_period_data = df.loc[last_period_start:last_period_end]
+        last_period_data = df.loc[str(last_period_start):str(last_period_end)]
         
         #print("Last period's data: ")
         #print(last_period_data.head())       
@@ -478,6 +480,7 @@ def tp_figure_maker(df, datecolumn, xlab, ylab, legend1, legend2, title):
         plt.legend(loc='upper center', shadow=True, fontsize='x-large')
         
         plt.title(title)
+        plt.show()
         #ax.plot(this_period_count)
         #ax.plot(last_period_count)
         #plot = fig.get_figure()
@@ -546,21 +549,29 @@ def churn_report(cnxn):
     #churn_text.append('This covers list churn between %s and %s.') % (
             #start, end)
     
-    churn_subscribed_query = '''
+    tp_churn_subscribed_query = '''
     SELECT * from CRS_EmailSubscriptions
     WHERE EmailSubscriptionStatusID = 2
     AND DateCreated <= '%s';
     ''' %this_period_end
+    
+    lp_churn_subscribed_query = '''
+    SELECT * from CRS_EmailSubscriptions
+    WHERE EmailSubscriptionStatusID = 2
+    AND DateCreated <= '%s';
+    ''' %last_period_end    
 
-    churn_unsubscribed_query = """
-    SELECT * FROM CRS_EmailSubscriptions
+    tp_churn_unsubscribed_query = """
+    SELECT EmailSubscriptionStatusID, DateCreated, DateUnsubscribed 
+    FROM CRS_EmailSubscriptions
     WHERE EmailSubscriptionStatusID = 0
     AND DateCreated <= '%s'
     AND DateUnsubscribed >= '%s'
     AND DateUnsubscribed <= '%s'
     UNION
     /***Total who became neutral before the start and the end of the period***/
-    SELECT * FROM CRS_EmailSubscriptions
+    SELECT EmailSubscriptionStatusID, DateCreated, DateModified 
+    FROM CRS_EmailSubscriptions
     WHERE EmailSubscriptionStatusID = 1
     AND DateCreated <= '%s'
     AND DateModified <= '%s'
@@ -568,16 +579,57 @@ def churn_report(cnxn):
     """ %(this_period_end, this_period_start, this_period_end, this_period_end, 
     this_period_end, this_period_start)
     
-    churn_unsubscribed_df = frame_assembler(churn_unsubscribed_query, cnxn)
+    lp_churn_unsubscribed_query = """
+    SELECT EmailSubscriptionStatusID, DateCreated, DateUnsubscribed 
+    FROM CRS_EmailSubscriptions
+    WHERE EmailSubscriptionStatusID = 0
+    AND DateCreated <= '%s'
+    AND DateUnsubscribed >= '%s'
+    AND DateUnsubscribed <= '%s'
+    UNION
+    /***Total who became neutral before the start and the end of the period***/
+    SELECT EmailSubscriptionStatusID, DateCreated, DateModified 
+    FROM CRS_EmailSubscriptions
+    WHERE EmailSubscriptionStatusID = 1
+    AND DateCreated <= '%s'
+    AND DateModified <= '%s'
+    AND DateModified >= '%s';
+    """ %(last_period_end, last_period_start, last_period_end, last_period_end, 
+    last_period_end, last_period_start)
     
-    churn_total_df = frame_assembler(churn_subscribed_query, cnxn, 'append', 
-                                    churn_unsubscribed_df)
+    tp_unsubscribed_df = frame_assembler(tp_churn_unsubscribed_query, 
+                                         cnxn)
     
-    print_churn = "{0:.3%}".format(
-            len(churn_unsubscribed_df.index)/len(churn_total_df)
+    tp_churn_total_df = frame_assembler(tp_churn_subscribed_query, cnxn, 
+                                        'append', tp_unsubscribed_df)
+    
+    lp_unsubscribed_df = frame_assembler(lp_churn_unsubscribed_query,
+                                         cnxn)
+    
+    lp_churn_total_df = frame_assembler(lp_churn_subscribed_query, 
+                                        cnxn, 'append', lp_unsubscribed_df)
+    
+    all_churn_df = frame_assembler(lp_churn_unsubscribed_query, cnxn,
+                                   'append', tp_unsubscribed_df)
+    
+    tp_churn = "{0:.3%}".format(
+            len(tp_unsubscribed_df.index)/len(tp_churn_total_df)
             )
     
-    churn_text['Total Period Churn'] = print_churn
+    lp_churn = "{0:.3%}".format(
+            len(lp_unsubscribed_df.index)/len(lp_churn_total_df)
+            )
+    
+    churn_text['This Period Churn'] = tp_churn
+    churn_text['Last Period Churn'] = lp_churn
+    
+    churn_graph_for_period = period_figure_maker(all_churn_df,
+                                                 'DateUnsubscribed', 
+                                                 'Date Unsubscribed',
+                                                 'Count of Records',
+                                                 '2019', '2018', 'Churn')
+    
+    churn_graphs['Total Churn Over Time'] = churn_graph_for_period
     
     return churn_text, churn_graphs
     
@@ -586,28 +638,30 @@ def churn_report(cnxn):
 def main():
     #set the quarter
     print('Setting dates...')
-    set_time_period('year', True)
+    set_time_period('month', True)
     
     ea_dw_cnxn = db_connect(cv.az_driver, 
                             cv.az_server,
                             cv.az_port,
                             cv.az_database,
                             cv.az_username,
-                            cv.az_password)    
+                            cv.az_password)  
+    
     #print('Getting data...')
     df = frame_assembler(form_and_revenue_query, ea_dw_cnxn)  
     
     #print(df.head())
     #print('Making figures...')
-    
-
-    
 
     churn_text, churn_graphs = churn_report(ea_dw_cnxn)
-    print(churn_text['Total Period Churn'])
+    print(churn_text['This Period Churn'])
+    print(churn_text['Last Period Churn'])
+    print(churn_graphs['Total Churn Over Time'])
     
-    tp_figure_maker(df, 'DateCreated', 'Day of Year', 'Count', '2019', '2018',
-                    'Form Transactions by Day - 2018 vs. 2019')
+    
+    #period_figure_maker(df, 'DateCreated', 'Day of Quarter', 'Count', 'Current', 
+                        #'Previous',
+                    #'Form Transactions by Day - This Q vs. Prev')
 
 
     
