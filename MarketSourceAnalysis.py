@@ -477,7 +477,7 @@ def period_figure_maker(df, datecolumn, xlab, ylab, legend1, legend2, title):
         plt.xlabel = (xlab)
         plt.ylabel = (ylab)
         
-        plt.legend(loc='upper center', shadow=True, fontsize='x-large')
+        plt.legend(loc='upper right', shadow=True, fontsize='medium')
         
         plt.title(title)
         plt.show()
@@ -627,7 +627,7 @@ def churn_report(cnxn):
                                                  'DateUnsubscribed', 
                                                  'Date Unsubscribed',
                                                  'Count of Records',
-                                                 '2019', '2018', 'Churn')
+                                                 'Current Period', 'Previous Period', 'Churn')
     
     churn_graphs['Total Churn Over Time'] = churn_graph_for_period
     
