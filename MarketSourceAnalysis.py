@@ -416,7 +416,7 @@ def figure_maker(dataframe, group_col, name, agg_method = 'count', plot_kind = '
 #This creates my graphs by time period
 def period_figure_maker(df, datecolumn, xlab, ylab, legend1, legend2, title):
     
-        x_count = (this_period_end - this_period_start)
+        x_count = (last_period_end - last_period_start)
         
         plt.xlim(0, x_count.days)
         
@@ -633,12 +633,19 @@ def churn_report(cnxn):
     
     return churn_text, churn_graphs
     
+def messages_sent_report(cnxn):
+    tp_messages_sent_query = '''
     
+    '''
+    lp_messages_sent_query = '''
+    
+    
+    '''
 #Main method, where the magic happens
 def main():
     #set the quarter
     print('Setting dates...')
-    set_time_period('month', True)
+    set_time_period('quarter', True)
     
     ea_dw_cnxn = db_connect(cv.az_driver, 
                             cv.az_server,
@@ -654,8 +661,8 @@ def main():
     #print('Making figures...')
 
     churn_text, churn_graphs = churn_report(ea_dw_cnxn)
-    print(churn_text['This Period Churn'])
-    print(churn_text['Last Period Churn'])
+    print("This period's churn: " + churn_text['This Period Churn'])
+    print("Last period's churn: " + churn_text['Last Period Churn'])
     print(churn_graphs['Total Churn Over Time'])
     
     
